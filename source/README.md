@@ -1,31 +1,3 @@
-# 🎯 Hệ thống Nhận diện Khuôn mặt với YOLOv7
-
-Hệ thống nhận diện khuôn mặt sử dụng **YOLOv7 chính thức** từ repository GitHub và **DeepFace** cho face recognition. Hệ thống được thiết kế để phát hiện và nhận diện khuôn mặt trong ảnh với độ chính xác cao.
-
-## 🚀 Tính năng chính
-
-- **Face Detection**: Sử dụng YOLOv7 chính thức từ [WongKinYiu/yolov7](https://github.com/WongKinYiu/yolov7)
-- **Face Recognition**: Sử dụng DeepFace để trích xuất embeddings và so khớp
-- **REST API**: Flask API với các endpoints cho detection và recognition
-- **Batch Processing**: Xử lý nhiều ảnh cùng lúc
-- **Docker Support**: Hỗ trợ cả CPU và GPU với Docker
-- **Training Pipeline**: Script training tự động với YOLOv7 chính thức
-- **🚀 Tối ưu hóa Build**: Multi-stage Docker build với cache dependencies
-- **⚡ Fast Development**: Development mode với auto-reload
-
-## 📋 Yêu cầu hệ thống
-
-### Phần mềm
-- Python 3.8+
-- Docker (tùy chọn)
-- Git
-
-### Phần cứng
-- **CPU**: Intel/AMD x86_64
-- **GPU**: NVIDIA GPU với CUDA support (khuyến nghị)
-- **RAM**: Tối thiểu 8GB, khuyến nghị 16GB+
-- **Storage**: Tối thiểu 10GB cho models và data
-
 ## 🛠️ Cài đặt
 
 ### 1. Clone repository
