@@ -130,9 +130,6 @@ source/
 ```bash
 # Linux/macOS
 ./build.sh setup
-
-# Windows
-build.bat setup
 ```
 
 ### 2. Chạy application
@@ -140,8 +137,6 @@ build.bat setup
 # Linux/macOS
 ./build.sh run
 
-# Windows
-build.bat run
 ```
 
 ### 3. Training
@@ -149,8 +144,6 @@ build.bat run
 # Linux/macOS
 ./build.sh train
 
-# Windows
-build.bat train
 ```
 
 ### 4. Testing
@@ -158,8 +151,6 @@ build.bat train
 # Linux/macOS
 ./build.sh test
 
-# Windows
-build.bat test
 ```
 
 ### 5. Docker
@@ -207,54 +198,5 @@ build.bat test
 - **Clear Naming**: Descriptive file and folder names
 - **Documentation**: Comprehensive README và comments
 
-## 🎯 Lợi ích của cấu trúc mới
-
-### ✅ Clean & Organized
-- Tách biệt rõ ràng các thành phần
-- Dễ tìm và sửa đổi code
-- Cấu trúc nhất quán
-
-### ✅ Scalable
-- Dễ thêm tính năng mới
-- Modular design cho phép mở rộng
-- Clear separation of concerns
-
-### ✅ Maintainable
-- Code được tổ chức logic
-- Dễ debug và test
-- Documentation đầy đủ
-
-### ✅ Cross-platform
-- Hỗ trợ cả Linux/macOS và Windows
-- Build scripts cho từng platform
-- Docker support
-
-### ✅ Production Ready
-- Docker containerization
-- Environment management
-- Security best practices
-- Comprehensive testing
-
-## 🔄 Migration Notes
-
-### Files đã được di chuyển:
-- `train.py` → `core/train.py`
-- `inference.py` → `core/inference.py`
-- `test_api.py` → `tests/test_api.py`
-- `create_test_image.py` → `tests/create_test_image.py`
-
-### Files đã được tạo:
-- `core/__init__.py`
-- `tests/__init__.py`
-- `build.bat` (Windows support)
-- `.gitkeep` files cho empty directories
-- `PROJECT_STRUCTURE.md`
-
-### Files đã được cập nhật:
-- `README.md` với cấu trúc mới
-- `.gitignore` với rules phù hợp
-- Import paths trong các modules
-
 ---
-
-**🎉 Project đã sẵn sàng cho development và production!** 
+**🎉 Học AI!** 
