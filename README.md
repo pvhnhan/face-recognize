@@ -1,8 +1,9 @@
-# 📁 Cấu trúc Project - Face Recognition System
-
 ## 🎯 Tổng quan
+Hệ thống nhận diện vật thể sử dung
+- Yolo v7
+- Deepface
 
-Project đã được clean và tổ chức lại với cấu trúc rõ ràng, dễ bảo trì và mở rộng.
+# 📁 Cấu trúc Project - Face Recognition System
 
 ## 📂 Cấu trúc thư mục
 
