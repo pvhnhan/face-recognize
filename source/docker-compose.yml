@@ -1,0 +1,242 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:6.0
+    container_name: face-recognition-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=face_recognition
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password123
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - face-recognition-network
+    profiles:
+      - all
+      - cpu
+      - gpu
+      - cpu-dev
+      - gpu-dev
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # MongoDB Express (Admin UI)
+  mongo-express:
+    image: mongo-express:1.0.0
+    container_name: face-recognition-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=password123
+      - ME_CONFIG_MONGODB_URL=mongodb://admin:password123@mongodb:27017/
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=password123
+    depends_on:
+      - mongodb
+    networks:
+      - face-recognition-network
+    profiles:
+      - all
+      - dev
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+  # Service cho chế độ CPU (Production)
+  face-recognition-cpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    container_name: face-recognition-cpu
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+    environment:
+      - DEVICE=cpu
+      - CUDA_VISIBLE_DEVICES=""
+      - FLASK_ENV=production
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/face_recognition?authSource=admin
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=face_recognition
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=password123
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - face-recognition-network
+    profiles:
+      - cpu
+
+  # Service cho chế độ CPU (Development)
+  face-recognition-cpu-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+      target: development
+    container_name: face-recognition-cpu-dev
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+      - ./:/app  # Mount source code for development
+    environment:
+      - DEVICE=cpu
+      - CUDA_VISIBLE_DEVICES=""
+      - FLASK_ENV=development
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/face_recognition?authSource=admin
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=face_recognition
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=password123
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - face-recognition-network
+    profiles:
+      - cpu-dev
+
+  # Service cho chế độ GPU (Production)
+  face-recognition-gpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+    container_name: face-recognition-gpu
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+    environment:
+      - DEVICE=gpu
+      - CUDA_VISIBLE_DEVICES=0
+      - FLASK_ENV=production
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/face_recognition?authSource=admin
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=face_recognition
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=password123
+    depends_on:
+      - mongodb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - face-recognition-network
+    profiles:
+      - gpu
+
+  # Service cho chế độ GPU (Development)
+  face-recognition-gpu-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      target: development
+    container_name: face-recognition-gpu-dev
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+      - ./:/app  # Mount source code for development
+    environment:
+      - DEVICE=gpu
+      - CUDA_VISIBLE_DEVICES=0
+      - FLASK_ENV=development
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/face_recognition?authSource=admin
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=face_recognition
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=password123
+    depends_on:
+      - mongodb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - face-recognition-network
+    profiles:
+      - gpu-dev
+
+  # Service cho training (GPU)
+  face-training:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+      target: production
+    container_name: face-training
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+    environment:
+      - DEVICE=gpu
+      - CUDA_VISIBLE_DEVICES=0
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/face_recognition?authSource=admin
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=face_recognition
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=password123
+    depends_on:
+      - mongodb
+    command: ["python3", "train.py"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - face-recognition-network
+    profiles:
+      - training
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  face-recognition-network:
+    driver: bridge 
