@@ -141,18 +141,29 @@ class DataProcessor:
         if len(valid_metadata) == 0:
             raise ValueError("Không có dữ liệu hợp lệ để huấn luyện")
         
-        # Phân chia dữ liệu
+        # Kiểm tra số lượng ảnh cho mỗi employee
+        employee_counts = valid_metadata['employee_id'].value_counts()
+        logger.info(f"Số ảnh theo employee: {employee_counts.to_dict()}")
+        
+        # Phân chia dữ liệu - luôn sử dụng random split để tránh lỗi stratified
+        logger.info("Sử dụng random split (không stratified)")
         train_metadata, val_metadata = train_test_split(
             valid_metadata, 
             test_size=test_size, 
-            random_state=42,
-            stratify=valid_metadata['employee_id'] if len(valid_metadata['employee_id'].unique()) > 1 else None
+            random_state=42
         )
         
         logger.info(f"Phân chia dữ liệu: {len(train_metadata)} train, {len(val_metadata)} validation")
+        
+        # Log thống kê phân chia
+        train_employee_counts = train_metadata['employee_id'].value_counts()
+        val_employee_counts = val_metadata['employee_id'].value_counts()
+        logger.info(f"Train employee counts: {train_employee_counts.to_dict()}")
+        logger.info(f"Val employee counts: {val_employee_counts.to_dict()}")
+        
         return train_metadata, val_metadata
     
-    def prepare_yolo_dataset(self, output_dir: Path = None) -> Dict[str, str]:
+    def prepare_yolo_dataset(self, output_dir: Path = None) -> bool:
         """
         Chuẩn bị dữ liệu theo format YOLO cho YOLOv7 chính thức
         
@@ -160,41 +171,47 @@ class DataProcessor:
             output_dir: Thư mục output cho dataset YOLO (mặc định là yolo_dataset_dir)
             
         Returns:
-            Dict: Đường dẫn đến các file cấu hình YOLO
+            bool: True nếu thành công
         """
-        if output_dir is None:
-            output_dir = self.yolo_dataset_dir
-        
-        train_metadata, val_metadata = self.split_data()
-        
-        # Tạo cấu trúc thư mục YOLO
-        yolo_dirs = {
-            'images': {
-                'train': output_dir / 'images' / 'train',
-                'val': output_dir / 'images' / 'val'
-            },
-            'labels': {
-                'train': output_dir / 'labels' / 'train',
-                'val': output_dir / 'labels' / 'val'
+        try:
+            if output_dir is None:
+                output_dir = self.yolo_dataset_dir
+            
+            train_metadata, val_metadata = self.split_data()
+            
+            # Tạo cấu trúc thư mục YOLO
+            yolo_dirs = {
+                'images': {
+                    'train': output_dir / 'images' / 'train',
+                    'val': output_dir / 'images' / 'val'
+                },
+                'labels': {
+                    'train': output_dir / 'labels' / 'train',
+                    'val': output_dir / 'labels' / 'val'
+                }
             }
-        }
-        
-        # Tạo thư mục
-        for split_dirs in yolo_dirs.values():
-            for dir_path in split_dirs.values():
-                dir_path.mkdir(parents=True, exist_ok=True)
-        
-        # Copy dữ liệu huấn luyện
-        self._copy_split_data(train_metadata, yolo_dirs['images']['train'], yolo_dirs['labels']['train'])
-        
-        # Copy dữ liệu validation
-        self._copy_split_data(val_metadata, yolo_dirs['images']['val'], yolo_dirs['labels']['val'])
-        
-        # Tạo file cấu hình YOLO
-        config_path = self._create_yolo_config(output_dir, len(train_metadata), len(val_metadata))
-        
-        logger.info(f"Đã chuẩn bị dataset YOLO tại: {output_dir}")
-        return {'config_path': str(config_path)}
+            
+            # Tạo thư mục
+            for split_dirs in yolo_dirs.values():
+                for dir_path in split_dirs.values():
+                    dir_path.mkdir(parents=True, exist_ok=True)
+            
+            # Copy dữ liệu huấn luyện
+            self._copy_split_data(train_metadata, yolo_dirs['images']['train'], yolo_dirs['labels']['train'])
+            
+            # Copy dữ liệu validation
+            self._copy_split_data(val_metadata, yolo_dirs['images']['val'], yolo_dirs['labels']['val'])
+            
+            # Tạo file cấu hình YOLO
+            config_path = self._create_yolo_config(output_dir, len(train_metadata), len(val_metadata))
+            
+            logger.info(f"Đã chuẩn bị dataset YOLO tại: {output_dir}")
+            logger.info(f"Config file: {config_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Lỗi khi chuẩn bị YOLO dataset: {e}")
+            return False
     
     def _copy_split_data(self, metadata: pd.DataFrame, images_dir: Path, labels_dir: Path):
         """Copy dữ liệu cho một split cụ thể"""

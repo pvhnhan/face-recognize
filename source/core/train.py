@@ -73,13 +73,12 @@ class FaceRecognitionTrainer:
                 logger.error("Không tìm thấy metadata.csv")
                 return False
             
-            # Đọc metadata
+            # Đọc metadata để kiểm tra
             metadata_df = pd.read_csv(metadata_path)
             logger.info(f"Đọc được {len(metadata_df)} records từ metadata")
             
-            # Chuẩn bị YOLO dataset
+            # Chuẩn bị YOLO dataset (không cần truyền metadata_df)
             success = self.data_processor.prepare_yolo_dataset(
-                metadata_df=metadata_df,
                 output_dir=self.yolo_dataset_dir
             )
             
@@ -115,7 +114,7 @@ class FaceRecognitionTrainer:
             
             for idx, row in metadata_df.iterrows():
                 try:
-                    image_path = self.data_dir / 'raw_images' / row['image_path']
+                    image_path = self.data_dir / 'raw_images' / row['filename']
                     if not image_path.exists():
                         logger.warning(f"Không tìm thấy ảnh: {image_path}")
                         continue
@@ -144,7 +143,7 @@ class FaceRecognitionTrainer:
                     
                     if face_embedding is not None:
                         # Lưu embedding
-                        embedding_key = f"{row['employee_id']}_{row['image_path']}"
+                        embedding_key = f"{row['employee_id']}_{row['filename']}"
                         embeddings_mapping[embedding_key] = {
                             'employee_id': row['employee_id'],
                             'full_name': row['full_name'],
@@ -159,7 +158,7 @@ class FaceRecognitionTrainer:
                     total_faces += 1
                     
                 except Exception as e:
-                    logger.error(f"Lỗi khi xử lý ảnh {row['image_path']}: {e}")
+                    logger.error(f"Lỗi khi xử lý ảnh {row['filename']}: {e}")
                     continue
             
             # Lưu embeddings mapping

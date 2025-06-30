@@ -19,13 +19,9 @@ import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional
 from flask import Blueprint, request, jsonify, current_app
-from flask_restx import Resource, fields, Namespace, reqparse
+from flask_restx import Resource, fields, Namespace
 import cv2
 import numpy as np
-import torch
-from werkzeug.datastructures import FileStorage
-from core.train import FaceRecognitionTrainer
-from threading import Thread
 
 # Thêm đường dẫn để import các module
 sys.path.append(str(Path(__file__).parent.parent))
@@ -43,21 +39,10 @@ face_recognition_bp = Blueprint('face_recognition', __name__, url_prefix='/api/f
 # Tạo namespace cho Swagger
 ns = Namespace('face-recognition', description='Face recognition operations')
 
-# Định nghĩa request parsers
-image_parser = reqparse.RequestParser()
-image_parser.add_argument('image', type=FileStorage, location='files', required=False, help='Ảnh upload (file)')
-image_parser.add_argument('image_base64', type=str, location='form', required=False, help='Ảnh dạng base64 string')
-
-batch_parser = reqparse.RequestParser()
-batch_parser.add_argument('images', type=str, location='json', required=True, 
-                         help='Danh sách ảnh base64 dạng JSON array')
-
 # Định nghĩa models cho Swagger
 face_detection_model = ns.model('FaceDetection', {
     'faces': fields.List(fields.Raw, description='Danh sách khuôn mặt được phát hiện'),
     'total_faces': fields.Integer(description='Tổng số khuôn mặt'),
-    'result_image_base64': fields.String(description='Ảnh kết quả với bounding boxes'),
-    'processing_time': fields.Float(description='Thời gian xử lý (giây)'),
     'status': fields.String(description='Trạng thái xử lý')
 })
 
@@ -67,24 +52,19 @@ face_recognition_model = ns.model('FaceRecognition', {
     'input_image': fields.String(description='Ảnh input dạng base64'),
     'matched_images': fields.List(fields.String, description='Danh sách ảnh khớp'),
     'similarity_score': fields.Float(description='Độ tương đồng (0-1)'),
-    'processing_time': fields.Float(description='Thời gian xử lý (giây)'),
     'status': fields.String(description='Trạng thái xử lý')
 })
 
 batch_recognition_model = ns.model('BatchRecognition', {
     'results': fields.List(fields.Raw, description='Kết quả nhận diện cho từng ảnh'),
     'total_processed': fields.Integer(description='Tổng số ảnh đã xử lý'),
-    'processing_time': fields.Float(description='Thời gian xử lý (giây)'),
     'status': fields.String(description='Trạng thái xử lý')
 })
 
 error_model = ns.model('Error', {
     'error': fields.String(description='Mô tả lỗi'),
-    'message': fields.String(description='Thông báo chi tiết'),
     'status': fields.String(description='Trạng thái lỗi')
 })
-
-train_status = {'running': False, 'success': None, 'log': ''}
 
 class FaceRecognitionAPI:
     """
@@ -369,7 +349,6 @@ api_instance = FaceRecognitionAPI()
 @ns.route('/detect')
 class FaceDetectionAPI(Resource):
     @ns.doc('detect_faces')
-    @ns.expect(image_parser)
     @ns.response(200, 'Success', face_detection_model)
     @ns.response(400, 'Bad Request', error_model)
     @ns.response(500, 'Internal Server Error', error_model)
@@ -382,11 +361,8 @@ class FaceDetectionAPI(Resource):
         try:
             start_time = time.time()
             
-            # Parse arguments
-            args = image_parser.parse_args()
-            
             # Kiểm tra request
-            if not args['image'] and not args['image_base64']:
+            if 'image' not in request.files and 'image_base64' not in request.form:
                 return {
                     'error': 'Thiếu ảnh input',
                     'message': 'Gửi file ảnh hoặc base64 string',
@@ -395,9 +371,9 @@ class FaceDetectionAPI(Resource):
             
             # Xử lý ảnh input
             image_path = None
-            if args['image']:
+            if 'image' in request.files:
                 # Upload file
-                file = args['image']
+                file = request.files['image']
                 if file.filename == '':
                     return {'error': 'Không có file được chọn', 'status': 'error'}, 400
                 
@@ -417,9 +393,9 @@ class FaceDetectionAPI(Resource):
                 image_path = temp_dir / f"temp_{int(time.time())}_{file.filename}"
                 file.save(str(image_path))
                 
-            elif args['image_base64']:
+            elif 'image_base64' in request.form:
                 # Base64 string
-                image_base64 = args['image_base64']
+                image_base64 = request.form['image_base64']
                 try:
                     # Lưu base64 thành file tạm
                     temp_dir = FLASK_CONFIG['temp_dir']
@@ -480,7 +456,6 @@ class FaceDetectionAPI(Resource):
 @ns.route('/recognize')
 class FaceRecognitionAPI(Resource):
     @ns.doc('recognize_faces')
-    @ns.expect(image_parser)
     @ns.response(200, 'Success', face_recognition_model)
     @ns.response(400, 'Bad Request', error_model)
     @ns.response(500, 'Internal Server Error', error_model)
@@ -493,11 +468,8 @@ class FaceRecognitionAPI(Resource):
         try:
             start_time = time.time()
             
-            # Parse arguments
-            args = image_parser.parse_args()
-            
             # Kiểm tra request
-            if not args['image'] and not args['image_base64']:
+            if 'image' not in request.files and 'image_base64' not in request.form:
                 return {
                     'error': 'Thiếu ảnh input',
                     'message': 'Gửi file ảnh hoặc base64 string',
@@ -506,8 +478,8 @@ class FaceRecognitionAPI(Resource):
             
             # Xử lý ảnh input (tương tự như detect)
             image_path = None
-            if args['image']:
-                file = args['image']
+            if 'image' in request.files:
+                file = request.files['image']
                 if file.filename == '':
                     return {'error': 'Không có file được chọn', 'status': 'error'}, 400
                 
@@ -516,8 +488,8 @@ class FaceRecognitionAPI(Resource):
                 image_path = temp_dir / f"temp_{int(time.time())}_{file.filename}"
                 file.save(str(image_path))
                 
-            elif args['image_base64']:
-                image_base64 = args['image_base64']
+            elif 'image_base64' in request.form:
+                image_base64 = request.form['image_base64']
                 try:
                     temp_dir = FLASK_CONFIG['temp_dir']
                     temp_dir.mkdir(parents=True, exist_ok=True)
@@ -541,7 +513,6 @@ class FaceRecognitionAPI(Resource):
                         'input_image': api_instance.image_processor.image_to_base64(cv2.imread(str(image_path))),
                         'matched_images': [],
                         'similarity_score': 0.0,
-                        'processing_time': time.time() - start_time,
                         'status': 'no_face_detected'
                     }
                 
@@ -556,7 +527,6 @@ class FaceRecognitionAPI(Resource):
                     'input_image': api_instance.image_processor.image_to_base64(cv2.imread(str(image_path))),
                     'matched_images': [result.get('matched_image', '')],
                     'similarity_score': result['similarity'],
-                    'processing_time': processing_time,
                     'status': 'success'
                 }
                 
@@ -579,7 +549,6 @@ class FaceRecognitionAPI(Resource):
 @ns.route('/batch')
 class BatchRecognitionAPI(Resource):
     @ns.doc('batch_recognition')
-    @ns.expect(batch_parser)
     @ns.response(200, 'Success', batch_recognition_model)
     @ns.response(400, 'Bad Request', error_model)
     @ns.response(500, 'Internal Server Error', error_model)
@@ -587,32 +556,20 @@ class BatchRecognitionAPI(Resource):
         """
         Nhận diện khuôn mặt cho nhiều ảnh
         
-        Gửi danh sách ảnh dưới dạng base64 strings trong JSON
+        Gửi danh sách ảnh dưới dạng base64 strings
         """
         try:
             start_time = time.time()
             
-            # Parse arguments
-            args = batch_parser.parse_args()
-            
             # Kiểm tra request
-            if not args['images']:
+            if 'images' not in request.json:
                 return {
                     'error': 'Thiếu danh sách ảnh',
                     'message': 'Gửi danh sách ảnh dưới dạng base64',
                     'status': 'error'
                 }, 400
             
-            # Parse JSON string thành list
-            try:
-                images_base64 = json.loads(args['images'])
-            except json.JSONDecodeError:
-                return {
-                    'error': 'Invalid JSON format',
-                    'message': 'Images phải là JSON array hợp lệ',
-                    'status': 'error'
-                }, 400
-            
+            images_base64 = request.json['images']
             if not isinstance(images_base64, list):
                 return {
                     'error': 'Images phải là danh sách',
@@ -688,7 +645,6 @@ class BatchRecognitionAPI(Resource):
 class StatusAPI(Resource):
     @ns.doc('get_status')
     @ns.response(200, 'Success')
-    @ns.response(500, 'Internal Server Error', error_model)
     def get(self):
         """
         Lấy trạng thái hệ thống
@@ -710,23 +666,98 @@ class StatusAPI(Resource):
                 'error': str(e)
             }, 500
 
+# Training status tracking
+train_status = {'running': False, 'success': None, 'log': '', 'start_time': None}
+
 @ns.route('/train')
 class FaceTrainAPI(Resource):
     @ns.doc('start_training')
+    @ns.response(200, 'Training started')
+    @ns.response(409, 'Training already running')
+    @ns.response(500, 'Internal Server Error', error_model)
     def post(self):
-        if train_status['running']:
-            return {'status': 'training', 'message': 'Training is already running.'}, 409
-        def train_job():
-            train_status['running'] = True
-            trainer = FaceRecognitionTrainer()
-            result = trainer.run_training_pipeline()
-            train_status['success'] = result
-            train_status['running'] = False
-        Thread(target=train_job).start()
-        return {'status': 'started'}
+        """
+        Bắt đầu quá trình training model
+        """
+        try:
+            if train_status['running']:
+                return {
+                    'status': 'training', 
+                    'message': 'Training is already running.',
+                    'start_time': train_status['start_time']
+                }, 409
+            
+            def train_job():
+                """Background training job"""
+                try:
+                    train_status['running'] = True
+                    train_status['start_time'] = time.time()
+                    train_status['log'] = 'Bắt đầu training...'
+                    
+                    # Import và khởi tạo trainer
+                    from core.train import FaceRecognitionTrainer
+                    
+                    # Khởi tạo trainer
+                    trainer = FaceRecognitionTrainer()
+                    train_status['log'] = 'Đã khởi tạo trainer, bắt đầu pipeline...'
+                    
+                    # Chạy pipeline training
+                    result = trainer.run_training_pipeline()
+                    
+                    train_status['success'] = result
+                    if result:
+                        train_status['log'] = 'Training hoàn thành thành công!'
+                    else:
+                        train_status['log'] = 'Training thất bại!'
+                    
+                except Exception as e:
+                    train_status['success'] = False
+                    train_status['log'] = f'Lỗi training: {str(e)}'
+                    logger.error(f"Lỗi trong training job: {e}")
+                finally:
+                    train_status['running'] = False
+            
+            # Chạy training trong thread riêng
+            from threading import Thread
+            Thread(target=train_job, daemon=True).start()
+            
+            return {
+                'status': 'started',
+                'message': 'Training đã được bắt đầu',
+                'start_time': train_status['start_time']
+            }
+            
+        except Exception as e:
+            logger.error(f"Lỗi khi bắt đầu training: {e}")
+            return {
+                'error': 'Lỗi server',
+                'message': str(e),
+                'status': 'error'
+            }, 500
 
 @ns.route('/train/status')
 class FaceTrainStatusAPI(Resource):
     @ns.doc('get_training_status')
+    @ns.response(200, 'Training status')
     def get(self):
-        return train_status 
+        """
+        Lấy trạng thái training
+        """
+        try:
+            status_info = train_status.copy()
+            
+            # Tính thời gian đã chạy
+            if status_info['running'] and status_info['start_time']:
+                elapsed_time = time.time() - status_info['start_time']
+                status_info['elapsed_time'] = elapsed_time
+            else:
+                status_info['elapsed_time'] = 0
+            
+            return status_info
+            
+        except Exception as e:
+            logger.error(f"Lỗi khi lấy training status: {e}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }, 500 
