@@ -236,6 +236,11 @@ services:
 volumes:
   mongodb_data:
     driver: local
+  data:
+  models:
+  outputs:
+  logs:
+  temp:
 
 networks:
   face-recognition-network:

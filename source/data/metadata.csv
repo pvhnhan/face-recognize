@@ -1,7 +1,19 @@
 filename,employee_id,full_name
-boy.jpg,E001,Dĩnh Anh
-game.jpg,E002,Doãn Minh
-nhan.jpg,E003,Trần Đức Nhân
-tai.jpg,E004,Tài
-boy-quan.jpg,E005,Dĩnh Anh và Quang Quân
-nhanquan.jpg,E006,Đức Nhân và Quang Quân
+e001.jpg,E001,Dĩnh Anh
+e001_aug_1.jpg,E001,Dĩnh Anh
+e001_aug_2.jpg,E001,Dĩnh Anh
+e002.jpg,E002,Doãn Minh
+e002_aug_1.jpg,E002,Doãn Minh
+e002_aug_2.jpg,E002,Doãn Minh
+e003.jpg,E003,Trần Đức Nhân
+e003_aug_1.jpg,E003,Trần Đức Nhân
+e003_aug_2.jpg,E003,Trần Đức Nhân
+e004.jpg,E004,Tài
+e004_aug_1.jpg,E004,Tài
+e004_aug_2.jpg,E004,Tài
+e005.jpg,E005,Quang Quân
+e005_aug_1.jpg,E005,Quang Quân
+e005_aug_2.jpg,E005,Quang Quân
+e006.jpg,E006,Minh Hà
+e006_aug_1.jpg,E006,Minh Hà
+e006_aug_2.jpg,E006,Minh Hà

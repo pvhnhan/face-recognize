@@ -37,7 +37,7 @@ MODEL_CONFIG = {
 # Cấu hình nhận diện khuôn mặt
 FACE_RECOGNITION_CONFIG = {
     'similarity_threshold': 0.6,  # Ngưỡng cosine similarity
-    'embedding_model': 'deepface',  # Mô hình embedding
+    'embedding_model': 'Facenet512',  # Mô hình embedding (VGG-Face, Facenet, Facenet512, OpenFace, DeepID, ArcFace, SFace) - Facenet512 tốt hơn
     'detector_backend': 'opencv',   # Backend cho face detection (fallback)
     'face_size': (160, 160),     # Kích thước chuẩn hóa khuôn mặt
     'max_faces': 10,             # Số lượng khuôn mặt tối đa trong ảnh
