@@ -143,28 +143,49 @@ class DataProcessor:
         
         # Kiểm tra số lượng samples per class
         employee_counts = valid_metadata['employee_id'].value_counts()
-        logger.info(f"Số lượng ảnh per employee: {employee_counts.to_dict()}")
+        total_samples = len(valid_metadata)
+        num_classes = len(employee_counts)
         
-        # Kiểm tra xem có employee nào có ít hơn 2 ảnh không
-        insufficient_employees = employee_counts[employee_counts < 2]
-        if len(insufficient_employees) > 0:
-            logger.warning(f"Các employee có ít hơn 2 ảnh: {insufficient_employees.to_dict()}")
+        logger.info(f"Số lượng ảnh per employee: {employee_counts.to_dict()}")
+        logger.info(f"Tổng số ảnh: {total_samples}, Số classes: {num_classes}")
+        
+        # Tính toán test_size thực tế
+        actual_test_size = int(total_samples * test_size)
+        logger.info(f"Test size yêu cầu: {actual_test_size} ảnh")
+        
+        # Kiểm tra điều kiện cho stratified split
+        if actual_test_size < num_classes:
+            logger.warning(f"Test size ({actual_test_size}) nhỏ hơn số classes ({num_classes})")
             logger.warning("Sẽ sử dụng random split thay vì stratified split")
             
-            # Sử dụng random split nếu có employee có ít hơn 2 ảnh
+            # Sử dụng random split
             train_metadata, val_metadata = train_test_split(
                 valid_metadata, 
                 test_size=test_size, 
                 random_state=42
             )
         else:
-            # Sử dụng stratified split nếu tất cả employee đều có ít nhất 2 ảnh
-            train_metadata, val_metadata = train_test_split(
-                valid_metadata, 
-                test_size=test_size, 
-                random_state=42,
-                stratify=valid_metadata['employee_id']
-            )
+            # Kiểm tra xem có employee nào có ít hơn 2 ảnh không
+            insufficient_employees = employee_counts[employee_counts < 2]
+            if len(insufficient_employees) > 0:
+                logger.warning(f"Các employee có ít hơn 2 ảnh: {insufficient_employees.to_dict()}")
+                logger.warning("Sẽ sử dụng random split thay vì stratified split")
+                
+                # Sử dụng random split nếu có employee có ít hơn 2 ảnh
+                train_metadata, val_metadata = train_test_split(
+                    valid_metadata, 
+                    test_size=test_size, 
+                    random_state=42
+                )
+            else:
+                # Sử dụng stratified split nếu tất cả điều kiện đều thỏa mãn
+                logger.info("Sử dụng stratified split")
+                train_metadata, val_metadata = train_test_split(
+                    valid_metadata, 
+                    test_size=test_size, 
+                    random_state=42,
+                    stratify=valid_metadata['employee_id']
+                )
         
         logger.info(f"Phân chia dữ liệu: {len(train_metadata)} train, {len(val_metadata)} validation")
         return train_metadata, val_metadata

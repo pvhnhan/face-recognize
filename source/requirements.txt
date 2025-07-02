@@ -1,59 +1,28 @@
-# Flask framework
-Flask==2.3.3
-Flask-CORS==4.0.0
-Flask-RESTX==1.3.0
-Werkzeug==2.3.7
-
-# Core dependencies - Stable versions for Docker
-numpy==1.24.3
+# Core dependencies - Simple and stable
+numpy==1.21.6
 Pillow==9.5.0
-opencv-python==4.8.1.78
-scipy==1.11.1
+opencv-python==4.7.0.72
 
-# Machine Learning - Stable versions
-torch==2.1.2
-torchvision==0.16.2
+# Web framework
+Flask==2.2.5
+Flask-CORS==4.0.0
+flask-restx==1.1.0
+Werkzeug==2.2.3
 
-# YOLOv7 dependencies
-PyYAML==6.0.1
-tqdm==4.66.1
-matplotlib==3.7.3
-seaborn==0.12.2
+# Data processing
+pandas==1.5.3
+scikit-learn==1.2.2
 
-# Face recognition dependencies - Stable versions
+# Face recognition - Simple approach
 face-recognition==1.3.0
 deepface==0.0.79
 
-# Data processing - Stable versions
-pandas==2.0.3
-scikit-learn==1.3.0
-
-# Image processing
-albumentations==1.3.1
-imgaug==0.4.0
-
 # Utilities
 python-dotenv==1.0.0
-requests==2.31.0
-aiofiles==23.2.1
+requests==2.28.2
+loguru==0.7.0
 
-# Logging and monitoring
-loguru==0.7.2
-
-# Additional dependencies for compatibility
-h5py==3.10.0
-tensorboard==2.15.0
-
-# TensorFlow and Keras - Stable versions for Docker
-tensorflow==2.15.0
-tf-keras==2.15.0
-keras==2.15.0
-
-# Additional dependencies for DeepFace
-retina-face==0.0.13
-mtcnn==0.1.1
-
-# Additional dependencies for DeepFace
-fire==0.5.0
-gdown==4.7.1
-gunicorn==21.2.0 
+# YOLO dependencies
+PyYAML==6.0.1
+tqdm==4.64.1
+matplotlib==3.6.3 

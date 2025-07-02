@@ -1,19 +1,11 @@
 filename,employee_id,full_name
-e001.jpg,E001,Dĩnh Anh
-e001_aug_1.jpg,E001,Dĩnh Anh
-e001_aug_2.jpg,E001,Dĩnh Anh
-e002.jpg,E002,Doãn Minh
-e002_aug_1.jpg,E002,Doãn Minh
-e002_aug_2.jpg,E002,Doãn Minh
-e003.jpg,E003,Trần Đức Nhân
-e003_aug_1.jpg,E003,Trần Đức Nhân
-e003_aug_2.jpg,E003,Trần Đức Nhân
-e004.jpg,E004,Tài
-e004_aug_1.jpg,E004,Tài
-e004_aug_2.jpg,E004,Tài
-e005.jpg,E005,Quang Quân
-e005_aug_1.jpg,E005,Quang Quân
-e005_aug_2.jpg,E005,Quang Quân
-e006.jpg,E006,Minh Hà
-e006_aug_1.jpg,E006,Minh Hà
-e006_aug_2.jpg,E006,Minh Hà
+boy.jpg,E1,Phan Dinh Anh
+boy-quan.jpg,E25,Phan Dinh Anh,Truong Quang Quan
+game.jpg,E3,Phan Doan Minh
+LamPhong,E4,Lam Phong
+Linh.jpg,E2,Linh
+nhan.jpg,E5,Tran Duc Nhan
+nhanquan.jpg,E26,Tran Duc Nhan,Truong Quang Quan
+Quynh,E6,Tran Thi Quynh
+tai.jpg,E7,Nguyen Tai
+hoanganh.jpg,E8,Hoang Anh
