@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from datetime import datetime
+from deepface import DeepFace
 
 # Thêm đường dẫn để import các module
 sys.path.append(str(Path(__file__).parent.parent))
@@ -125,18 +126,54 @@ class FaceRecognitionTrainer:
                         logger.warning(f"Không thể đọc ảnh: {image_path}")
                         continue
                     
-                    # Phát hiện khuôn mặt
-                    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-                    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-                    
-                    if len(faces) == 0:
-                        logger.warning(f"Không tìm thấy khuôn mặt trong: {image_path}")
-                        continue
-                    
-                    # Lấy khuôn mặt đầu tiên
-                    x, y, w, h = faces[0]
-                    face_region = image[y:y+h, x:x+w]
+                    # Phát hiện khuôn mặt sử dụng DeepFace (mạnh hơn OpenCV)
+                    try:
+                        # Chuyển BGR sang RGB cho DeepFace
+                        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                        
+                        # Sử dụng DeepFace để phát hiện khuôn mặt
+                        face_objs = DeepFace.extract_faces(
+                            img_path=image_rgb,
+                            detector_backend='opencv',
+                            enforce_detection=False
+                        )
+                        
+                        if len(face_objs) == 0:
+                            # Fallback về OpenCV nếu DeepFace không phát hiện được
+                            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                            
+                            if len(faces) == 0:
+                                logger.warning(f"Không tìm thấy khuôn mặt trong: {image_path}")
+                                continue
+                            
+                            # Lấy khuôn mặt đầu tiên
+                            x, y, w, h = faces[0]
+                            face_region = image[y:y+h, x:x+w]
+                        else:
+                            # Sử dụng kết quả từ DeepFace
+                            face_obj = face_objs[0]
+                            face_region = face_obj['face']
+                            # Chuyển về BGR để tương thích với code cũ
+                            face_region = cv2.cvtColor(face_region, cv2.COLOR_RGB2BGR)
+                            # Lấy bbox từ DeepFace
+                            facial_area = face_obj['facial_area']
+                            x, y, w, h = facial_area['x'], facial_area['y'], facial_area['w'], facial_area['h']
+                    except Exception as e:
+                        logger.warning(f"Lỗi DeepFace detection, fallback về OpenCV: {e}")
+                        # Fallback về OpenCV
+                        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                        
+                        if len(faces) == 0:
+                            logger.warning(f"Không tìm thấy khuôn mặt trong: {image_path}")
+                            continue
+                        
+                        # Lấy khuôn mặt đầu tiên
+                        x, y, w, h = faces[0]
+                        face_region = image[y:y+h, x:x+w]
                     
                     # Trích xuất embedding
                     face_embedding = self.face_processor.extract_face_embedding(face_region)
@@ -149,7 +186,7 @@ class FaceRecognitionTrainer:
                             'full_name': row['full_name'],
                             'image_path': str(image_path),
                             'embedding': face_embedding.tolist(),
-                            'bbox': [x, y, w, h],
+                            'bbox': [int(x), int(y), int(w), int(h)],
                             'created_at': datetime.now().isoformat()
                         }
                         successful_faces += 1
