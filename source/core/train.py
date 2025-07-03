@@ -233,6 +233,10 @@ class FaceRecognitionTrainer:
                 logger.error("Không tìm thấy YOLO dataset")
                 return False
             
+            # Cài đặt YOLOv7 dependencies nếu cần
+            if not self._install_yolov7_dependencies(yolov7_path):
+                logger.warning("Không thể cài đặt YOLOv7 dependencies, thử training với dependencies hiện tại")
+            
             # Tạo file config cho YOLOv7
             data_yaml = self._create_yolo_data_config()
             if not data_yaml:
@@ -245,12 +249,23 @@ class FaceRecognitionTrainer:
             logger.info(f"Chạy lệnh training: {train_cmd}")
             
             import subprocess
+            import sys
+            
+            # Sử dụng Python interpreter hiện tại thay vì python trong thư mục YOLOv7
+            python_cmd = sys.executable
+            train_cmd = train_cmd.replace("python train.py", f"{python_cmd} train.py")
+            
+            # Thêm YOLOv7 path vào PYTHONPATH
+            env = os.environ.copy()
+            env['PYTHONPATH'] = f"{yolov7_path}:{env.get('PYTHONPATH', '')}"
+            
             result = subprocess.run(
                 train_cmd,
                 shell=True,
                 capture_output=True,
                 text=True,
-                cwd=yolov7_path
+                cwd=yolov7_path,
+                env=env
             )
             
             if result.returncode == 0:
@@ -263,6 +278,45 @@ class FaceRecognitionTrainer:
                 
         except Exception as e:
             logger.error(f"Lỗi khi huấn luyện YOLOv7: {e}")
+            return False
+    
+    def _install_yolov7_dependencies(self, yolov7_path: Path) -> bool:
+        """
+        Cài đặt dependencies cho YOLOv7
+        
+        Args:
+            yolov7_path: Đường dẫn đến thư mục YOLOv7
+            
+        Returns:
+            bool: True nếu thành công
+        """
+        try:
+            logger.info("Cài đặt YOLOv7 dependencies...")
+            
+            # Kiểm tra file requirements.txt
+            requirements_file = yolov7_path / 'requirements.txt'
+            if not requirements_file.exists():
+                logger.warning("Không tìm thấy requirements.txt trong YOLOv7")
+                return False
+            
+            # Cài đặt dependencies
+            import subprocess
+            result = subprocess.run(
+                f"pip install -r {requirements_file}",
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                logger.info("✅ Cài đặt YOLOv7 dependencies thành công")
+                return True
+            else:
+                logger.warning(f"⚠️ Lỗi cài đặt dependencies: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Lỗi khi cài đặt YOLOv7 dependencies: {e}")
             return False
     
     def _create_yolo_data_config(self) -> Optional[Path]:

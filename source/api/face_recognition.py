@@ -22,6 +22,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_restx import Resource, fields, Namespace
 import cv2
 import numpy as np
+from datetime import datetime
 
 # Thêm đường dẫn để import các module
 sys.path.append(str(Path(__file__).parent.parent))
@@ -64,6 +65,22 @@ batch_recognition_model = ns.model('BatchRecognition', {
 error_model = ns.model('Error', {
     'error': fields.String(description='Mô tả lỗi'),
     'status': fields.String(description='Trạng thái lỗi')
+})
+
+training_model = ns.model('Training', {
+    'status': fields.String(description='Trạng thái training'),
+    'status_code': fields.String(description='Mã trạng thái'),
+    'message': fields.String(description='Thông báo'),
+    'start_time': fields.String(description='Thời gian bắt đầu (ISO format)'),
+    'end_time': fields.String(description='Thời gian kết thúc (ISO format)'),
+    'estimated_duration': fields.String(description='Thời gian ước tính'),
+    'steps': fields.List(fields.String, description='Danh sách các bước'),
+    'progress': fields.Raw(description='Tiến độ hiện tại'),
+    'steps_completed': fields.Raw(description='Các bước đã hoàn thành'),
+    'statistics': fields.Raw(description='Thống kê training'),
+    'overview': fields.Raw(description='Tổng quan training'),
+    'elapsed_time': fields.Float(description='Thời gian đã chạy (giây)'),
+    'estimated_remaining': fields.Float(description='Thời gian còn lại ước tính (giây)')
 })
 
 class FaceRecognitionAPI:
@@ -667,13 +684,37 @@ class StatusAPI(Resource):
             }, 500
 
 # Training status tracking
-train_status = {'running': False, 'success': None, 'log': '', 'start_time': None}
+train_status = {
+    'running': False, 
+    'success': None, 
+    'log': '', 
+    'start_time': None,
+    'end_time': None,
+    'start_timestamp': None,
+    'end_timestamp': None,
+    'status_code': None,
+    'steps_completed': {
+        'dataset_prepared': False,
+        'embeddings_created': False,
+        'yolov7_trained': False
+    },
+    'progress': {
+        'current_step': '',
+        'total_steps': 3,
+        'completed_steps': 0
+    },
+    'statistics': {
+        'total_faces': 0,
+        'successful_embeddings': 0,
+        'training_time': 0
+    }
+}
 
 @ns.route('/train')
 class FaceTrainAPI(Resource):
     @ns.doc('start_training')
-    @ns.response(200, 'Training started')
-    @ns.response(409, 'Training already running')
+    @ns.response(200, 'Training started', training_model)
+    @ns.response(409, 'Training already running', training_model)
     @ns.response(500, 'Internal Server Error', error_model)
     def post(self):
         """
@@ -683,16 +724,33 @@ class FaceTrainAPI(Resource):
             if train_status['running']:
                 return {
                     'status': 'training', 
+                    'status_code': 'running',
                     'message': 'Training is already running.',
-                    'start_time': train_status['start_time']
+                    'start_time': train_status['start_time'],
+                    'progress': train_status['progress'],
+                    'steps_completed': train_status['steps_completed'],
+                    'overview': {
+                        'is_running': True,
+                        'is_completed': False,
+                        'is_failed': False,
+                        'total_steps': train_status['progress']['total_steps'],
+                        'completed_steps': train_status['progress']['completed_steps'],
+                        'completion_percentage': round((train_status['progress']['completed_steps'] / train_status['progress']['total_steps']) * 100, 1)
+                    }
                 }, 409
             
             def train_job():
                 """Background training job"""
                 try:
                     train_status['running'] = True
-                    train_status['start_time'] = time.time()
+                    train_status['start_timestamp'] = time.time()
+                    train_status['start_time'] = datetime.now().isoformat()
+                    train_status['end_time'] = None
+                    train_status['end_timestamp'] = None
+                    train_status['status_code'] = 'running'
                     train_status['log'] = 'Bắt đầu training...'
+                    train_status['progress']['current_step'] = 'Khởi tạo'
+                    train_status['progress']['completed_steps'] = 0
                     
                     # Import và khởi tạo trainer
                     from core.train import FaceRecognitionTrainer
@@ -701,18 +759,59 @@ class FaceTrainAPI(Resource):
                     trainer = FaceRecognitionTrainer()
                     train_status['log'] = 'Đã khởi tạo trainer, bắt đầu pipeline...'
                     
-                    # Chạy pipeline training
-                    result = trainer.run_training_pipeline()
+                    # Bước 1: Chuẩn bị dataset
+                    train_status['progress']['current_step'] = 'Chuẩn bị dataset'
+                    train_status['log'] = 'Đang chuẩn bị dataset...'
                     
-                    train_status['success'] = result
-                    if result:
-                        train_status['log'] = 'Training hoàn thành thành công!'
+                    if trainer.prepare_dataset():
+                        train_status['steps_completed']['dataset_prepared'] = True
+                        train_status['progress']['completed_steps'] = 1
+                        train_status['log'] = '✅ Chuẩn bị dataset thành công'
                     else:
-                        train_status['log'] = 'Training thất bại!'
+                        train_status['log'] = '❌ Chuẩn bị dataset thất bại'
+                        train_status['status_code'] = 'failed'
+                        train_status['success'] = False
+                        return
+                    
+                    # Bước 2: Tạo embeddings
+                    train_status['progress']['current_step'] = 'Tạo embeddings'
+                    train_status['log'] = 'Đang tạo embeddings...'
+                    
+                    if trainer.create_embeddings():
+                        train_status['steps_completed']['embeddings_created'] = True
+                        train_status['progress']['completed_steps'] = 2
+                        train_status['log'] = '✅ Tạo embeddings thành công'
+                    else:
+                        train_status['log'] = '❌ Tạo embeddings thất bại'
+                        train_status['status_code'] = 'failed'
+                        train_status['success'] = False
+                        return
+                    
+                    # Bước 3: Huấn luyện YOLOv7
+                    train_status['progress']['current_step'] = 'Huấn luyện YOLOv7'
+                    train_status['log'] = 'Đang huấn luyện YOLOv7...'
+                    
+                    if trainer.train_yolov7():
+                        train_status['steps_completed']['yolov7_trained'] = True
+                        train_status['progress']['completed_steps'] = 3
+                        train_status['log'] = '✅ Huấn luyện YOLOv7 thành công'
+                    else:
+                        train_status['log'] = '⚠️ Huấn luyện YOLOv7 thất bại (có thể sử dụng pretrained)'
+                    
+                    # Hoàn thành
+                    train_status['end_timestamp'] = time.time()
+                    train_status['end_time'] = datetime.now().isoformat()
+                    train_status['statistics']['training_time'] = train_status['end_timestamp'] - train_status['start_timestamp']
+                    train_status['success'] = True
+                    train_status['status_code'] = 'completed'
+                    train_status['log'] = '🎉 Training hoàn thành thành công!'
                     
                 except Exception as e:
+                    train_status['end_timestamp'] = time.time()
+                    train_status['end_time'] = datetime.now().isoformat()
                     train_status['success'] = False
-                    train_status['log'] = f'Lỗi training: {str(e)}'
+                    train_status['status_code'] = 'error'
+                    train_status['log'] = f'❌ Lỗi training: {str(e)}'
                     logger.error(f"Lỗi trong training job: {e}")
                 finally:
                     train_status['running'] = False
@@ -723,8 +822,17 @@ class FaceTrainAPI(Resource):
             
             return {
                 'status': 'started',
+                'status_code': 'started',
                 'message': 'Training đã được bắt đầu',
-                'start_time': train_status['start_time']
+                'start_time': train_status['start_time'],
+                'estimated_duration': '5-10 phút',
+                'steps': [
+                    'Chuẩn bị dataset',
+                    'Tạo embeddings', 
+                    'Huấn luyện YOLOv7'
+                ],
+                'progress': train_status['progress'],
+                'steps_completed': train_status['steps_completed']
             }
             
         except Exception as e:
@@ -738,7 +846,8 @@ class FaceTrainAPI(Resource):
 @ns.route('/train/status')
 class FaceTrainStatusAPI(Resource):
     @ns.doc('get_training_status')
-    @ns.response(200, 'Training status')
+    @ns.response(200, 'Training status', training_model)
+    @ns.response(500, 'Internal Server Error', error_model)
     def get(self):
         """
         Lấy trạng thái training
@@ -747,11 +856,23 @@ class FaceTrainStatusAPI(Resource):
             status_info = train_status.copy()
             
             # Tính thời gian đã chạy
-            if status_info['running'] and status_info['start_time']:
-                elapsed_time = time.time() - status_info['start_time']
+            if status_info['running'] and status_info['start_timestamp']:
+                elapsed_time = time.time() - status_info['start_timestamp']
                 status_info['elapsed_time'] = elapsed_time
+                status_info['estimated_remaining'] = max(0, (300 - elapsed_time))  # Ước tính 5 phút
             else:
                 status_info['elapsed_time'] = 0
+                status_info['estimated_remaining'] = 0
+            
+            # Thêm thông tin tổng quan
+            status_info['overview'] = {
+                'is_running': status_info['running'],
+                'is_completed': status_info['status_code'] == 'completed',
+                'is_failed': status_info['status_code'] in ['failed', 'error'],
+                'total_steps': status_info['progress']['total_steps'],
+                'completed_steps': status_info['progress']['completed_steps'],
+                'completion_percentage': round((status_info['progress']['completed_steps'] / status_info['progress']['total_steps']) * 100, 1)
+            }
             
             return status_info
             
