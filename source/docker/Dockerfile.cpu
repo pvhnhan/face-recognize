@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Build dlib thủ công
-RUN git clone --branch v19.24 https://github.com/davisking/dlib.git && \
+RUN git clone --branch v19.24 --depth 1 https://github.com/davisking/dlib.git && \
     cd dlib && \
     python3 setup.py install && \
     cd .. && rm -rf dlib
@@ -38,7 +38,10 @@ RUN git clone --branch v19.24 https://github.com/davisking/dlib.git && \
 # Cài đặt thư viện Python
 COPY requirements.txt ./
 ENV PIP_DEFAULT_TIMEOUT=300
-RUN pip install --no-cache-dir -i https://pypi.org/simple -r requirements.txt
+ENV PIP_NO_CACHE_DIR=1
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir pybind11 && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Đảm bảo cmake mới được ưu tiên
 ENV PATH="/usr/local/bin:$PATH"
@@ -46,25 +49,17 @@ ENV PATH="/usr/local/bin:$PATH"
 # In version để debug
 RUN cmake --version && gcc --version && python3 --version
 
-# Thiết lập thư mục làm việc
-WORKDIR /app
-
-# Cài pybind11 trước để tránh lỗi khi build dlib
-RUN pip install --no-cache-dir pybind11
-
-# Cài đặt thư viện Python
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Stage 2: Production - Image cuối cùng cho production
 FROM python:3.9-slim as production
 
-# Cài đặt các thư viện hệ thống cần thiết cho OpenCV
+# Cài đặt các thư viện hệ thống cần thiết cho OpenCV và git
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libx11-6 \
     libgtk-3-0 \
+    git \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -72,8 +67,16 @@ WORKDIR /app
 # Sao chép các thư viện đã cài từ stage 'base'
 COPY --from=base /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
-# Sao chép mã nguồn ứng dụng
-COPY . .
+# Sao chép mã nguồn ứng dụng (chỉ những file cần thiết)
+COPY requirements.txt ./
+COPY app.py ./
+COPY config/ ./config/
+COPY core/ ./core/
+COPY api/ ./api/
+COPY utils/ ./utils/
+COPY yolov7/ ./yolov7/
+COPY data/yolo_dataset/ ./data/yolo_dataset/
+COPY models/pretrained/ ./models/pretrained/
 
 # Thiết lập biến môi trường cho production
 ENV FLASK_APP=app.py
@@ -86,12 +89,14 @@ CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=5000"]
 # Stage 3: Development - Image cho môi trường phát triển
 FROM python:3.9-slim as development
 
-# Cài đặt các thư viện hệ thống cần thiết cho OpenCV
+# Cài đặt các thư viện hệ thống cần thiết cho OpenCV và git
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libx11-6 \
     libgtk-3-0 \
+    git \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -99,9 +104,17 @@ WORKDIR /app
 # Sao chép các thư viện đã cài từ stage 'base'
 COPY --from=base /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
-# Sao chép mã nguồn ứng dụng
+# Sao chép mã nguồn ứng dụng (chỉ những file cần thiết)
 # Mặc dù docker-compose sẽ mount code, việc copy vẫn hữu ích để image có thể chạy độc lập
-COPY . .
+COPY requirements.txt ./
+COPY app.py ./
+COPY config/ ./config/
+COPY core/ ./core/
+COPY api/ ./api/
+COPY utils/ ./utils/
+COPY yolov7/ ./yolov7/
+COPY data/yolo_dataset/ ./data/yolo_dataset/
+COPY models/pretrained/ ./models/pretrained/
 
 # Thiết lập biến môi trường cho development
 ENV FLASK_APP=app.py

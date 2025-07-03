@@ -23,6 +23,7 @@ from flask_restx import Resource, fields, Namespace
 import cv2
 import numpy as np
 from datetime import datetime
+import torch
 
 # Thêm đường dẫn để import các module
 sys.path.append(str(Path(__file__).parent.parent))
@@ -120,7 +121,7 @@ class FaceRecognitionAPI:
             'detect.py',
             'models/experimental.py',
             'utils/general.py',
-            'utils/augmentations.py'
+            'utils/datasets.py'
         ]
         
         for file_path in required_files:

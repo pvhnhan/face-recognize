@@ -59,11 +59,14 @@ RUN if [ ! -f /app/models/yolov7/yolov7.pt ]; then \
     wget -O /app/models/yolov7/yolov7.pt https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7.pt; \
     fi
 
-# Copy source code
-COPY . .
-
-# Test TensorFlow và dependencies (với xử lý lỗi)
-RUN python3 test_tensorflow.py || echo "Test failed but continuing..."
+# Copy source code (chỉ những file cần thiết)
+COPY app.py ./
+COPY config/ ./config/
+COPY core/ ./core/
+COPY api/ ./api/
+COPY utils/ ./utils/
+COPY data/yolo_dataset/ ./data/yolo_dataset/
+COPY models/pretrained/ ./models/pretrained/
 
 # Expose port
 EXPOSE 5000
@@ -91,11 +94,14 @@ FROM python:3.10-slim as development
 # Cài đặt dev dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
-COPY . .
-
-# Test TensorFlow và dependencies
-RUN python3 test_tensorflow.py || echo "Test failed but continuing..."
+# Copy source code (chỉ những file cần thiết)
+COPY app.py ./
+COPY config/ ./config/
+COPY core/ ./core/
+COPY api/ ./api/
+COPY utils/ ./utils/
+COPY data/yolo_dataset/ ./data/yolo_dataset/
+COPY models/pretrained/ ./models/pretrained/
 
 # Expose port
 EXPOSE 5000

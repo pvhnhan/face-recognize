@@ -242,8 +242,85 @@ class FaceRecognitionTrainer:
             if not data_yaml:
                 return False
             
+            # Kiểm tra dataset trước khi training
+            if not self._validate_dataset():
+                logger.error("Dataset validation thất bại")
+                return False
+            
+            # Debug: Kiểm tra đường dẫn dataset
+            logger.info(f"Dataset path: {self.yolo_dataset_dir}")
+            logger.info(f"Dataset exists: {self.yolo_dataset_dir.exists()}")
+            logger.info(f"Train images dir: {self.yolo_dataset_dir / 'images' / 'train'}")
+            logger.info(f"Train images exists: {(self.yolo_dataset_dir / 'images' / 'train').exists()}")
+            logger.info(f"Val images dir: {self.yolo_dataset_dir / 'images' / 'val'}")
+            logger.info(f"Val images exists: {(self.yolo_dataset_dir / 'images' / 'val').exists()}")
+            
+            # Kiểm tra thư mục hiện tại và tạo symlink nếu cần
+            import os
+            current_dir = os.getcwd()
+            logger.info(f"Current working directory: {current_dir}")
+            
+            # Tạo symlink từ yolov7/data đến dataset thực tế
+            yolov7_data_dir = yolov7_path / 'data'
+            if not yolov7_data_dir.exists():
+                yolov7_data_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Tạo symlink cho dataset
+            dataset_symlink = yolov7_data_dir / 'yolo_dataset'
+            if dataset_symlink.exists():
+                dataset_symlink.unlink()
+            
+            try:
+                import os
+                os.symlink(str(self.yolo_dataset_dir), str(dataset_symlink))
+                logger.info(f"Created symlink: {dataset_symlink} -> {self.yolo_dataset_dir}")
+            except Exception as e:
+                logger.warning(f"Could not create symlink: {e}")
+                # Fallback: copy dataset
+                import shutil
+                if dataset_symlink.exists():
+                    shutil.rmtree(dataset_symlink)
+                shutil.copytree(str(self.yolo_dataset_dir), str(dataset_symlink))
+                logger.info(f"Copied dataset to: {dataset_symlink}")
+            
+            # Copy file config vào thư mục YOLOv7
+            config_in_yolov7 = yolov7_data_dir / 'yolo_dataset' / 'dataset.yaml'
+            if data_yaml.exists():
+                import shutil
+                shutil.copy2(str(data_yaml), str(config_in_yolov7))
+                logger.info(f"Copied config to: {config_in_yolov7}")
+            
             # Chuẩn bị lệnh training
             train_cmd = self._prepare_training_command(data_yaml)
+            
+            # Debug: Kiểm tra file config
+            logger.info(f"Config file: {data_yaml}")
+            logger.info(f"Config exists: {data_yaml.exists()}")
+            if data_yaml.exists():
+                with open(data_yaml, 'r') as f:
+                    config_content = f.read()
+                    logger.info(f"Config content:\n{config_content}")
+                
+                # Test đọc YAML
+                import yaml
+                try:
+                    with open(data_yaml, 'r') as f:
+                        test_data_dict = yaml.load(f, Loader=yaml.SafeLoader)
+                    logger.info(f"YAML parsed successfully: {test_data_dict}")
+                    
+                    # Kiểm tra các đường dẫn trong data_dict
+                    if 'train' in test_data_dict:
+                        train_path = Path(test_data_dict['path']) / test_data_dict['train']
+                        logger.info(f"Train path: {train_path}")
+                        logger.info(f"Train path exists: {train_path.exists()}")
+                    
+                    if 'val' in test_data_dict:
+                        val_path = Path(test_data_dict['path']) / test_data_dict['val']
+                        logger.info(f"Val path: {val_path}")
+                        logger.info(f"Val path exists: {val_path.exists()}")
+                        
+                except Exception as e:
+                    logger.error(f"Error parsing YAML: {e}")
             
             # Chạy training
             logger.info(f"Chạy lệnh training: {train_cmd}")
@@ -337,7 +414,7 @@ class FaceRecognitionTrainer:
             # Tạo nội dung config
             config_content = f"""
 # YOLOv7 Face Detection Dataset Config
-path: {self.yolo_dataset_dir.absolute()}  # dataset root dir
+path: data/yolo_dataset  # dataset root dir (relative to yolov7 directory)
 train: images/train  # train images (relative to 'path')
 val: images/val  # val images (relative to 'path')
 
@@ -363,6 +440,73 @@ total_count: {train_count + val_count}
             logger.error(f"Lỗi khi tạo YOLO config: {e}")
             return None
     
+    def _validate_dataset(self) -> bool:
+        """
+        Kiểm tra tính hợp lệ của dataset
+        
+        Returns:
+            bool: True nếu dataset hợp lệ
+        """
+        try:
+            logger.info("Kiểm tra dataset...")
+            
+            # Kiểm tra thư mục images
+            train_images_dir = self.yolo_dataset_dir / 'images' / 'train'
+            val_images_dir = self.yolo_dataset_dir / 'images' / 'val'
+            
+            if not train_images_dir.exists():
+                logger.error(f"Không tìm thấy thư mục train images: {train_images_dir}")
+                return False
+            
+            if not val_images_dir.exists():
+                logger.error(f"Không tìm thấy thư mục val images: {val_images_dir}")
+                return False
+            
+            # Kiểm tra thư mục labels
+            train_labels_dir = self.yolo_dataset_dir / 'labels' / 'train'
+            val_labels_dir = self.yolo_dataset_dir / 'labels' / 'val'
+            
+            if not train_labels_dir.exists():
+                logger.error(f"Không tìm thấy thư mục train labels: {train_labels_dir}")
+                return False
+            
+            if not val_labels_dir.exists():
+                logger.error(f"Không tìm thấy thư mục val labels: {val_labels_dir}")
+                return False
+            
+            # Đếm số lượng ảnh và labels
+            train_images = list(train_images_dir.glob('*.jpg')) + list(train_images_dir.glob('*.png'))
+            val_images = list(val_images_dir.glob('*.jpg')) + list(val_images_dir.glob('*.png'))
+            
+            train_labels = list(train_labels_dir.glob('*.txt'))
+            val_labels = list(val_labels_dir.glob('*.txt'))
+            
+            logger.info(f"Train images: {len(train_images)}, Train labels: {len(train_labels)}")
+            logger.info(f"Val images: {len(val_images)}, Val labels: {len(val_labels)}")
+            
+            # Kiểm tra xem có ít nhất 1 ảnh trong mỗi split không
+            if len(train_images) == 0:
+                logger.error("Không có ảnh training")
+                return False
+            
+            if len(val_images) == 0:
+                logger.error("Không có ảnh validation")
+                return False
+            
+            # Kiểm tra xem số lượng ảnh và labels có khớp không
+            if len(train_images) != len(train_labels):
+                logger.warning(f"Số lượng train images ({len(train_images)}) không khớp với train labels ({len(train_labels)})")
+            
+            if len(val_images) != len(val_labels):
+                logger.warning(f"Số lượng val images ({len(val_images)}) không khớp với val labels ({len(val_labels)})")
+            
+            logger.info("✅ Dataset validation thành công")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Lỗi khi validate dataset: {e}")
+            return False
+    
     def _prepare_training_command(self, data_yaml: Path) -> str:
         """
         Chuẩn bị lệnh training YOLOv7
@@ -376,18 +520,21 @@ total_count: {train_count + val_count}
         # Sử dụng YOLOv7 tiny để training nhanh hơn
         model_config = 'cfg/training/yolov7-tiny.yaml'
         
+        # Sử dụng đường dẫn tương đối cho config file
+        relative_data_yaml = "data/yolo_dataset/dataset.yaml"
+        
         cmd_parts = [
             "python train.py",
-            f"--data {data_yaml}",
+            f"--data {relative_data_yaml}",
             f"--cfg {model_config}",
+            "--weights ''",  # Không sử dụng pretrained weights để tránh lỗi download
             f"--epochs {TRAINING_CONFIG['epochs']}",
             f"--batch-size {TRAINING_CONFIG['batch_size']}",
             f"--img-size {TRAINING_CONFIG['img_size']}",
             "--device 0" if TRAINING_CONFIG.get('use_gpu', False) else "--device cpu",
             "--project ../models/trained",
             "--name face_detection",
-            "--exist-ok",
-            "--save-period 10"
+            "--exist-ok"
         ]
         
         return " ".join(cmd_parts)
