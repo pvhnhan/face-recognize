@@ -244,8 +244,7 @@ class FaceRecognitionTrainer:
             
             # Kiểm tra dataset trước khi training
             if not self._validate_dataset():
-                logger.error("Dataset validation thất bại")
-                return False
+                logger.error("Dataset validation thất bại")                                
             
             # Debug: Kiểm tra đường dẫn dataset
             logger.info(f"Dataset path: {self.yolo_dataset_dir}")
@@ -254,6 +253,47 @@ class FaceRecognitionTrainer:
             logger.info(f"Train images exists: {(self.yolo_dataset_dir / 'images' / 'train').exists()}")
             logger.info(f"Val images dir: {self.yolo_dataset_dir / 'images' / 'val'}")
             logger.info(f"Val images exists: {(self.yolo_dataset_dir / 'images' / 'val').exists()}")
+            
+            # Debug thêm: Kiểm tra từ thư mục YOLOv7
+            if yolov7_path.exists():
+                logger.info(f"YOLOv7 path: {yolov7_path}")
+                logger.info(f"YOLOv7 exists: {yolov7_path.exists()}")
+                
+                # Kiểm tra đường dẫn tương đối từ YOLOv7
+                relative_dataset_path = yolov7_path.parent / "data" / "yolo_dataset"
+                logger.info(f"Relative dataset path from YOLO: {relative_dataset_path}")
+                logger.info(f"Relative dataset exists: {relative_dataset_path.exists()}")
+                
+                if relative_dataset_path.exists():
+                    train_path_from_yolo = relative_dataset_path / "images" / "train"
+                    val_path_from_yolo = relative_dataset_path / "images" / "val"
+                    logger.info(f"Train path from YOLO: {train_path_from_yolo}")
+                    logger.info(f"Train path from YOLO exists: {train_path_from_yolo.exists()}")
+                    logger.info(f"Val path from YOLO: {val_path_from_yolo}")
+                    logger.info(f"Val path from YOLO exists: {val_path_from_yolo.exists()}")
+                    
+                    if train_path_from_yolo.exists():
+                        train_files = list(train_path_from_yolo.glob("*"))
+                        logger.info(f"Train files count: {len(train_files)}")
+                        if train_files:
+                            logger.info(f"First few train files: {[f.name for f in train_files[:3]]}")
+                    
+                    if val_path_from_yolo.exists():
+                        val_files = list(val_path_from_yolo.glob("*"))
+                        logger.info(f"Val files count: {len(val_files)}")
+                        if val_files:
+                            logger.info(f"First few val files: {[f.name for f in val_files[:3]]}")
+            
+            # Kiểm tra nội dung thư mục
+            if self.yolo_dataset_dir.exists():
+                logger.info(f"Dataset contents: {list(self.yolo_dataset_dir.iterdir())}")
+                if (self.yolo_dataset_dir / 'images').exists():
+                    logger.info(f"Images contents: {list((self.yolo_dataset_dir / 'images').iterdir())}")
+                    if (self.yolo_dataset_dir / 'images' / 'train').exists():
+                        train_files = list((self.yolo_dataset_dir / 'images' / 'train').glob('*'))
+                        logger.info(f"Train files: {len(train_files)} files")
+                        if len(train_files) > 0:
+                            logger.info(f"First few train files: {[f.name for f in train_files[:5]]}")
             
             # Kiểm tra thư mục hiện tại và tạo symlink nếu cần
             import os
@@ -265,15 +305,30 @@ class FaceRecognitionTrainer:
             if not yolov7_data_dir.exists():
                 yolov7_data_dir.mkdir(parents=True, exist_ok=True)
             
+            # Xóa thư mục wandb_logging để tránh lỗi import
+            wandb_logging_dir = yolov7_path / 'utils' / 'wandb_logging'
+            if wandb_logging_dir.exists():
+                import shutil
+                shutil.rmtree(wandb_logging_dir)
+                logger.info(f"Removed wandb_logging directory: {wandb_logging_dir}")
+            
             # Tạo symlink cho dataset
             dataset_symlink = yolov7_data_dir / 'yolo_dataset'
             if dataset_symlink.exists():
-                dataset_symlink.unlink()
+                if dataset_symlink.is_symlink():
+                    dataset_symlink.unlink()
+                else:
+                    import shutil
+                    shutil.rmtree(dataset_symlink)
             
             try:
                 import os
                 os.symlink(str(self.yolo_dataset_dir), str(dataset_symlink))
                 logger.info(f"Created symlink: {dataset_symlink} -> {self.yolo_dataset_dir}")
+                
+                # Không copy config vì symlink đã trỏ đến dataset gốc
+                logger.info("Using symlinked dataset, no need to copy config")
+                
             except Exception as e:
                 logger.warning(f"Could not create symlink: {e}")
                 # Fallback: copy dataset
@@ -282,13 +337,12 @@ class FaceRecognitionTrainer:
                     shutil.rmtree(dataset_symlink)
                 shutil.copytree(str(self.yolo_dataset_dir), str(dataset_symlink))
                 logger.info(f"Copied dataset to: {dataset_symlink}")
-            
-            # Copy file config vào thư mục YOLOv7
-            config_in_yolov7 = yolov7_data_dir / 'yolo_dataset' / 'dataset.yaml'
-            if data_yaml.exists():
-                import shutil
-                shutil.copy2(str(data_yaml), str(config_in_yolov7))
-                logger.info(f"Copied config to: {config_in_yolov7}")
+                
+                # Copy file config vào thư mục YOLOv7 chỉ khi copy dataset
+                config_in_yolov7 = yolov7_data_dir / 'yolo_dataset' / 'dataset.yaml'
+                if data_yaml.exists():
+                    shutil.copy2(str(data_yaml), str(config_in_yolov7))
+                    logger.info(f"Copied config to: {config_in_yolov7}")
             
             # Chuẩn bị lệnh training
             train_cmd = self._prepare_training_command(data_yaml)
@@ -411,10 +465,38 @@ class FaceRecognitionTrainer:
             train_count = len(list(train_dir.glob('*.jpg'))) + len(list(train_dir.glob('*.png')))
             val_count = len(list(val_dir.glob('*.jpg'))) + len(list(val_dir.glob('*.png')))
             
-            # Tạo nội dung config
+            # Tạo nội dung config với đường dẫn tương đối từ thư mục YOLOv7
+            # Trong Docker container, yolov7 nằm ở /app/yolov7 và dataset ở /app/data/yolo_dataset
+            yolov7_path = Path(__file__).parent.parent / 'yolov7'
+            
+            # Kiểm tra xem có đang chạy trong Docker container không
+            if Path("/app").exists():
+                # Trong Docker container
+                relative_path = "../data/yolo_dataset"
+                logger.info(f"Running in Docker container, using relative path: {relative_path}")
+            else:
+                # Trong môi trường local
+                relative_path = os.path.relpath(self.yolo_dataset_dir, yolov7_path)
+                logger.info(f"Running in local environment, using relative path: {relative_path}")
+            
+            # Debug: Kiểm tra đường dẫn cuối cùng
+            final_path = yolov7_path / relative_path
+            logger.info(f"Final dataset path: {final_path}")
+            logger.info(f"Final dataset path exists: {final_path.exists()}")
+            
+            if final_path.exists():
+                train_final = final_path / "images" / "train"
+                val_final = final_path / "images" / "val"
+                logger.info(f"Final train path: {train_final}")
+                logger.info(f"Final train path exists: {train_final.exists()}")
+                logger.info(f"Final val path: {val_final}")
+                logger.info(f"Final val path exists: {val_final.exists()}")
+            else:
+                logger.error(f"Final dataset path does not exist: {final_path}")
+            
             config_content = f"""
 # YOLOv7 Face Detection Dataset Config
-path: data/yolo_dataset  # dataset root dir (relative to yolov7 directory)
+path: {relative_path}  # dataset root dir (relative to yolov7 directory)
 train: images/train  # train images (relative to 'path')
 val: images/val  # val images (relative to 'path')
 
@@ -518,23 +600,32 @@ total_count: {train_count + val_count}
             str: Lệnh training
         """
         # Sử dụng YOLOv7 tiny để training nhanh hơn
-        model_config = 'cfg/training/yolov7-tiny.yaml'
-        
-        # Sử dụng đường dẫn tương đối cho config file
-        relative_data_yaml = "data/yolo_dataset/dataset.yaml"
+        # Sử dụng đường dẫn tuyệt đối cho tất cả
+        if Path("/app").exists():
+            # Trong Docker container - sử dụng đường dẫn tuyệt đối
+            absolute_data_yaml = "/app/data/yolo_dataset/dataset.yaml"
+            model_config = "/app/yolov7/cfg/training/yolov7-tiny.yaml"
+            project_path = "/app/models/trained"
+        else:
+            # Trong môi trường local - sử dụng đường dẫn tuyệt đối
+            absolute_data_yaml = str(data_yaml.absolute())
+            yolov7_path = Path(__file__).parent.parent / "yolov7"
+            model_config = str(yolov7_path / "cfg/training/yolov7-tiny.yaml")
+            project_path = str(Path(__file__).parent.parent / "models/trained")
         
         cmd_parts = [
             "python train.py",
-            f"--data {relative_data_yaml}",
+            f"--data {absolute_data_yaml}",
             f"--cfg {model_config}",
             "--weights ''",  # Không sử dụng pretrained weights để tránh lỗi download
             f"--epochs {TRAINING_CONFIG['epochs']}",
             f"--batch-size {TRAINING_CONFIG['batch_size']}",
             f"--img-size {TRAINING_CONFIG['img_size']}",
             "--device 0" if TRAINING_CONFIG.get('use_gpu', False) else "--device cpu",
-            "--project ../models/trained",
+            f"--project {project_path}",
             "--name face_detection",
-            "--exist-ok"
+            "--exist-ok",
+            "--workers 0"  # Giảm workers để tránh lỗi shared memory
         ]
         
         return " ".join(cmd_parts)

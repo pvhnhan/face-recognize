@@ -86,6 +86,7 @@ services:
       - face-recognition-network
     profiles:
       - cpu
+    shm_size: 2gb  # Tăng shared memory cho training
 
   # Service cho chế độ CPU (Development)
   face-recognition-cpu-dev:
@@ -119,6 +120,7 @@ services:
       - face-recognition-network
     profiles:
       - cpu-dev
+    shm_size: 2gb  # Tăng shared memory cho training
 
   # Service cho chế độ GPU (Production)
   face-recognition-gpu:
@@ -157,6 +159,7 @@ services:
       - face-recognition-network
     profiles:
       - gpu
+    shm_size: 2gb  # Tăng shared memory cho training
 
   # Service cho chế độ GPU (Development)
   face-recognition-gpu-dev:
@@ -197,6 +200,7 @@ services:
       - face-recognition-network
     profiles:
       - gpu-dev
+    shm_size: 2gb  # Tăng shared memory cho training
 
   # Service cho training (GPU)
   face-training:
