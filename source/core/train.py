@@ -355,7 +355,7 @@ class FaceRecognitionTrainer:
                     config_content = f.read()
                     logger.info(f"Config content:\n{config_content}")
                 
-                # Test đọc YAML
+                # Test đọc YAML -- Lỗi đọc file train và val
                 import yaml
                 try:
                     with open(data_yaml, 'r') as f:

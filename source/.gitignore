@@ -73,12 +73,12 @@ temp/
 *.bmp
 
 # Docker
-.dockerignore
+# .dockerignore
 
 # Environment variables
-.env
+# .env
 .env.local
-.env.production
+# .env.production
 
 # Jupyter Notebook
 .ipynb_checkpoints

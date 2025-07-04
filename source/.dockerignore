@@ -1,0 +1,21 @@
+# Loại trừ file/thư mục không cần thiết khi build Docker image
+*.pyc
+__pycache__/
+logs/
+outputs/
+temp/
+.DS_Store
+*.log
+*.tmp
+.env
+.idea/
+.vscode/
+*.ipynb_checkpoints/ 
+
+
+# Thư mục chứa dữ liệu và mô hình
+data/raw_images/
+models/face_embeddings/
+models/trained/
+
+yolov7/data/yolo_dataset
