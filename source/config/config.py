@@ -48,7 +48,7 @@ TRAINING_CONFIG = {
     'logging': {
         'level': 'INFO',
         'format': '%(asctime)s - %(levelname)s - %(message)s',
-        'file': 'logs/training.log'
+        'file': '/app/logs/training.log'
     },
     'batch_size': 16,
     'epochs': 100,

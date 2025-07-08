@@ -4,7 +4,7 @@ Hệ thống nhận diện khuôn mặt sử dụng **YOLOv7 chính thức** t�
 
 ## 🚀 Tính năng chính
 
-- **Face Detection**: Sử dụng YOLOv7 chính thức từ [WongKinYiu/yolov7](https://github.com/WongKinYiu/yolov7)
+- **Face Detection**: Sử dụng YOLOv7 chính thức từ [WongKinYiu/yolov7](https://github.com/WongKinYiu/yolov7); clove về để vào thư mục yolov7
 - **Face Recognition**: Sử dụng DeepFace để trích xuất embeddings và so khớp
 - **REST API**: Flask API với các endpoints cho detection và recognition
 - **Batch Processing**: Xử lý nhiều ảnh cùng lúc
@@ -83,7 +83,7 @@ source/
 │   ├── face_utils.py         # Face processing utilities
 │   └── image_utils.py        # Image processing utilities
 │
-├── 📁 yolov7/                 # YOLOv7 repository (cloned)
+├── 📁 yolov7/                 # YOLOv7 repository (cloned) https://github.com/WongKinYiu/yolov7.git yolov7
 │
 ├── 📁 outputs/                # Inference results
 │   └── .gitkeep

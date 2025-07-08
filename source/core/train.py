@@ -305,12 +305,7 @@ class FaceRecognitionTrainer:
             if not yolov7_data_dir.exists():
                 yolov7_data_dir.mkdir(parents=True, exist_ok=True)
             
-            # Xóa thư mục wandb_logging để tránh lỗi import
-            wandb_logging_dir = yolov7_path / 'utils' / 'wandb_logging'
-            if wandb_logging_dir.exists():
-                import shutil
-                shutil.rmtree(wandb_logging_dir)
-                logger.info(f"Removed wandb_logging directory: {wandb_logging_dir}")
+
             
             # Tạo symlink cho dataset
             dataset_symlink = yolov7_data_dir / 'yolo_dataset'
@@ -376,6 +371,48 @@ class FaceRecognitionTrainer:
                 except Exception as e:
                     logger.error(f"Error parsing YAML: {e}")
             
+            # Debug: Kiểm tra đường dẫn dataset trước khi training
+            logger.info("🔍 Debug: Kiểm tra đường dẫn dataset...")
+            import yaml
+            with open(data_yaml, 'r') as f:
+                data_dict = yaml.load(f, Loader=yaml.SafeLoader)
+            
+            logger.info(f"Dataset config: {data_dict}")
+            
+            # Kiểm tra đường dẫn validation
+            val_path = Path(data_dict['path']) / data_dict['val']
+            logger.info(f"Validation path: {val_path}")
+            logger.info(f"Validation path exists: {val_path.exists()}")
+            logger.info(f"Validation path absolute: {val_path.resolve()}")
+            
+            # Kiểm tra từ thư mục YOLOv7
+            yolov7_val_path = yolov7_path / data_dict['path'] / data_dict['val']
+            logger.info(f"YOLOv7 validation path: {yolov7_val_path}")
+            logger.info(f"YOLOv7 validation path exists: {yolov7_val_path.exists()}")
+            logger.info(f"YOLOv7 validation path absolute: {yolov7_val_path.resolve()}")
+            
+            # Debug thêm: Kiểm tra chính xác như YOLOv7 check_dataset
+            logger.info("🔍 Debug: Kiểm tra như YOLOv7 check_dataset...")
+            val = data_dict.get('val')
+            logger.info(f"Val from config: {val}")
+            
+            if val and len(val):
+                val_paths = [Path(x).resolve() for x in (val if isinstance(val, list) else [val])]
+                logger.info(f"Val paths after resolve: {val_paths}")
+                
+                for i, path in enumerate(val_paths):
+                    logger.info(f"Val path {i}: {path}")
+                    logger.info(f"Val path {i} exists: {path.exists()}")
+                    logger.info(f"Val path {i} absolute: {path.resolve()}")
+                
+                missing_paths = [str(x) for x in val_paths if not x.exists()]
+                logger.info(f"Missing paths: {missing_paths}")
+                
+                if missing_paths:
+                    logger.error(f"❌ Dataset not found! Missing: {missing_paths}")
+                else:
+                    logger.info("✅ All validation paths exist!")
+            
             # Chạy training
             logger.info(f"Chạy lệnh training: {train_cmd}")
             
@@ -410,6 +447,8 @@ class FaceRecognitionTrainer:
         except Exception as e:
             logger.error(f"Lỗi khi huấn luyện YOLOv7: {e}")
             return False
+    
+
     
     def _install_yolov7_dependencies(self, yolov7_path: Path) -> bool:
         """
@@ -465,22 +504,22 @@ class FaceRecognitionTrainer:
             train_count = len(list(train_dir.glob('*.jpg'))) + len(list(train_dir.glob('*.png')))
             val_count = len(list(val_dir.glob('*.jpg'))) + len(list(val_dir.glob('*.png')))
             
-            # Tạo nội dung config với đường dẫn tương đối từ thư mục YOLOv7
+            # Tạo nội dung config với đường dẫn tuyệt đối để tránh lỗi resolve
             # Trong Docker container, yolov7 nằm ở /app/yolov7 và dataset ở /app/data/yolo_dataset
             yolov7_path = Path(__file__).parent.parent / 'yolov7'
             
             # Kiểm tra xem có đang chạy trong Docker container không
             if Path("/app").exists():
-                # Trong Docker container
-                relative_path = "../data/yolo_dataset"
-                logger.info(f"Running in Docker container, using relative path: {relative_path}")
+                # Trong Docker container - sử dụng đường dẫn tuyệt đối
+                absolute_path = "/app/data/yolo_dataset"
+                logger.info(f"Running in Docker container, using absolute path: {absolute_path}")
             else:
-                # Trong môi trường local
-                relative_path = os.path.relpath(self.yolo_dataset_dir, yolov7_path)
-                logger.info(f"Running in local environment, using relative path: {relative_path}")
+                # Trong môi trường local - sử dụng đường dẫn tuyệt đối
+                absolute_path = str(self.yolo_dataset_dir.absolute())
+                logger.info(f"Running in local environment, using absolute path: {absolute_path}")
             
             # Debug: Kiểm tra đường dẫn cuối cùng
-            final_path = yolov7_path / relative_path
+            final_path = Path(absolute_path)
             logger.info(f"Final dataset path: {final_path}")
             logger.info(f"Final dataset path exists: {final_path.exists()}")
             
@@ -496,9 +535,9 @@ class FaceRecognitionTrainer:
             
             config_content = f"""
 # YOLOv7 Face Detection Dataset Config
-path: {relative_path}  # dataset root dir (relative to yolov7 directory)
-train: images/train  # train images (relative to 'path')
-val: images/val  # val images (relative to 'path')
+path: {absolute_path}  # dataset root dir (absolute path)
+train: {absolute_path}/images/train  # train images (absolute path)
+val: {absolute_path}/images/val  # val images (absolute path)
 
 # Classes
 nc: 1  # number of classes
@@ -600,17 +639,16 @@ total_count: {train_count + val_count}
             str: Lệnh training
         """
         # Sử dụng YOLOv7 tiny để training nhanh hơn
-        # Sử dụng đường dẫn tuyệt đối cho tất cả
+        # Sử dụng đường dẫn tuyệt đối để tránh lỗi resolve
         if Path("/app").exists():
             # Trong Docker container - sử dụng đường dẫn tuyệt đối
             absolute_data_yaml = "/app/data/yolo_dataset/dataset.yaml"
-            model_config = "/app/yolov7/cfg/training/yolov7-tiny.yaml"
+            model_config = "cfg/training/yolov7-tiny.yaml"
             project_path = "/app/models/trained"
         else:
             # Trong môi trường local - sử dụng đường dẫn tuyệt đối
             absolute_data_yaml = str(data_yaml.absolute())
-            yolov7_path = Path(__file__).parent.parent / "yolov7"
-            model_config = str(yolov7_path / "cfg/training/yolov7-tiny.yaml")
+            model_config = "cfg/training/yolov7-tiny.yaml"
             project_path = str(Path(__file__).parent.parent / "models/trained")
         
         cmd_parts = [
@@ -628,7 +666,9 @@ total_count: {train_count + val_count}
             "--workers 0"  # Giảm workers để tránh lỗi shared memory
         ]
         
-        return " ".join(cmd_parts)
+        final_cmd = " ".join(cmd_parts)
+        logger.info(f"🔧 Generated training command: {final_cmd}")
+        return final_cmd
     
     def save_training_log(self, training_info: Dict):
         """

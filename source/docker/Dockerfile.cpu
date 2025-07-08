@@ -74,7 +74,6 @@ COPY config/ ./config/
 COPY core/ ./core/
 COPY api/ ./api/
 COPY utils/ ./utils/
-COPY yolov7/ ./yolov7/
 COPY data/yolo_dataset/ ./data/yolo_dataset/
 COPY models/pretrained/ ./models/pretrained/
 
@@ -104,6 +103,9 @@ WORKDIR /app
 # Sao chép các thư viện đã cài từ stage 'base'
 COPY --from=base /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
+# Clone YOLOv7 repository
+# RUN git clone https://github.com/WongKinYiu/yolov7.git yolov7
+
 # Sao chép mã nguồn ứng dụng (chỉ những file cần thiết)
 # Mặc dù docker-compose sẽ mount code, việc copy vẫn hữu ích để image có thể chạy độc lập
 COPY requirements.txt ./
@@ -112,9 +114,9 @@ COPY config/ ./config/
 COPY core/ ./core/
 COPY api/ ./api/
 COPY utils/ ./utils/
-COPY yolov7/ ./yolov7/
 COPY data/yolo_dataset/ ./data/yolo_dataset/
 COPY models/pretrained/ ./models/pretrained/
+COPY yolov7/ ./yolov7/ 
 
 # Thiết lập biến môi trường cho development
 ENV FLASK_APP=app.py

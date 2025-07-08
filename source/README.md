@@ -177,6 +177,11 @@ source/
 #### Chuẩn bị dữ liệu
 1. Đặt ảnh vào `data/raw_images/`
 2. Cập nhật `data/metadata.csv` với thông tin employee:
+3. Khi chạy train với YOLO, cần cập nhật đúng các phần ở file data/yolo_dataset/dataset.yml:
+# YOLOv7 Face Detection Dataset Config
+  path: /app/data/yolo_dataset  # dataset root dir (absolute path)
+  train: /app/data/yolo_dataset/images/train  # train images (absolute path)
+  val: /app/data/yolo_dataset/images/val  # val images (absolute path)
 ```csv
 image_name,employee_id,full_name
 person1.jpg,EMP001,Nguyen Van A
